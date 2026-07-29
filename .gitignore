@@ -1,0 +1,19 @@
+# Virtual environment
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Persisted vector index
+storage/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# IDE
+.idea/
