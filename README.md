@@ -40,7 +40,7 @@ are sent to the HuggingFace Inference API to generate the final answer.
 | RAG framework | [LlamaIndex](https://docs.llamaindex.ai/) |
 | Note loading | `SimpleDirectoryReader` (recursive `.md`) |
 | Embeddings (local) | HuggingFace `sentence-transformers` — default `BAAI/bge-small-en-v1.5` |
-| Answer model | HuggingFace Inference API — default `mistralai/Mistral-7B-Instruct-v0.3` (ungated) |
+| Answer model | HuggingFace Inference API — default `Qwen/Qwen2.5-7B-Instruct` (ungated) |
 | Vector store | [ChromaDB](https://www.trychroma.com/) (persisted to `./storage`) |
 | UI | [Gradio](https://www.gradio.app/) chat |
 | Config / secrets | `config.yaml` + `.env` (`python-dotenv`) |
@@ -84,8 +84,8 @@ python src/obsidian_rag/app.py
 
 Everything lives in **`config.yaml`**:
 
-- **Swap the answer model** — set `llm_model` to any text-generation model served by the
-  HuggingFace Inference API (e.g. `mistralai/Mistral-7B-Instruct-v0.3`). Just restart the
+- **Swap the answer model** — set `llm_model` to any chat model served by the
+  HuggingFace Inference API (e.g. `Qwen/Qwen2.5-7B-Instruct`). Just restart the
   app — **no re-indexing needed**.
 - **Swap the embedding model** — set `embedding_model` to any HuggingFace
   sentence-transformers model (e.g. `sentence-transformers/all-MiniLM-L6-v2`). Because
@@ -120,4 +120,4 @@ storage/               # persisted Chroma index (auto-created, gitignored)
   this is the simple, correct baseline; incremental re-indexing is a natural next step.
 - First run downloads the embedding model (a few hundred MB) and caches it locally.
 - Some HF Inference API models are gated (e.g. Llama) — accept the model's terms on its
-  HuggingFace page once, or pick an ungated model like `mistralai/Mistral-7B-Instruct-v0.3`.
+  HuggingFace page once, or pick an ungated model like `Qwen/Qwen2.5-7B-Instruct`.
