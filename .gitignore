@@ -17,3 +17,10 @@ __pycache__/
 
 # IDE
 .idea/
+
+# Evaluation
+data/corpus/
+mlruns/
+mlflow.db
+mlartifacts/
+.ruff_cache/

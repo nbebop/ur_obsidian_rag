@@ -64,7 +64,7 @@ def load_config(
             f"Config file not found: {path}. Copy the provided config.yaml and edit it."
         )
 
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
 
     missing = [k for k in ("vault_path", "embedding_model", "llm_model") if k not in raw]

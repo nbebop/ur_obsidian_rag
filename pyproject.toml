@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ur-obsidian-rag"
+version = "0.1.0"
+description = "RAG over Markdown notes with LlamaIndex, Chroma and local HF embeddings."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "llama-index-core>=0.12,<0.13",
+    "llama-index-embeddings-huggingface>=0.5,<0.6",
+    "llama-index-llms-huggingface-api>=0.5,<0.6",
+    "llama-index-vector-stores-chroma>=0.4,<0.5",
+    "sentence-transformers>=3.0",
+    "chromadb>=1.0,<2",
+    "gradio>=5",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+eval = ["mlflow>=3,<4"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = ["slow: loads a real embedding model (deselect with -m 'not slow')"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
