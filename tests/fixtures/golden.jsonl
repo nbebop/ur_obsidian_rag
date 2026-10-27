@@ -1,0 +1,5 @@
+{"schema_version": 1, "id": "t1", "question": "How can I make a large model use less memory by storing weights in 4-bit?", "relevant_docs": ["quantization.md"], "reference_answer": "Use 4-bit quantization."}
+{"schema_version": 1, "id": "t2", "question": "Which object do I use to set the learning rate and number of epochs?", "relevant_docs": ["guides/trainer.md"]}
+{"schema_version": 1, "id": "t3", "question": "What is the simplest way to run speech recognition inference?", "relevant_docs": ["guides/pipelines.md"]}
+{"schema_version": 1, "id": "t4", "question": "How do I find which characters each token came from?", "relevant_docs": ["tokenizers.md"]}
+{"schema_version": 1, "id": "t5", "question": "What is the capital of Australia?", "relevant_docs": []}
