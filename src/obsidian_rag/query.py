@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from llama_index.core import Settings
 from llama_index.core.prompts import PromptTemplate
 from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
 
 from .config import Config, load_config
-from .indexer import load_index
+from .indexer import IndexSpec, load_index
 
 # Keep the model grounded in retrieved notes rather than its own knowledge.
 QA_PROMPT = PromptTemplate(
@@ -42,13 +41,18 @@ class RagEngine:
 
     def __init__(self, config: Config | None = None):
         self.config = config or load_config()
-        Settings.llm = HuggingFaceInferenceAPI(
+        llm = HuggingFaceInferenceAPI(
             model_name=self.config.llm_model,
             provider=self.config.llm_provider,
             token=self.config.hf_token,
         )
-        index = load_index(self.config)
+        index = load_index(
+            IndexSpec.from_config(self.config),
+            self.config.chroma_path,
+            self.config.collection_name,
+        )
         self.query_engine = index.as_query_engine(
+            llm=llm,
             similarity_top_k=self.config.top_k,
             text_qa_template=QA_PROMPT,
         )
@@ -57,7 +61,7 @@ class RagEngine:
         response = self.query_engine.query(question)
         sources: list[Source] = []
         for node in response.source_nodes:
-            name = node.node.metadata.get("file_name") or node.node.node_id
+            name = node.node.metadata.get("doc_id") or node.node.node_id
             text = node.node.get_content().strip().replace("\n", " ")
             sources.append(
                 Source(

@@ -1,84 +1,176 @@
-"""Build the vector index from an Obsidian vault.
+"""Build the vector index from a folder of Markdown files (Obsidian vault or eval corpus).
 
-Flow: read .md notes -> chunk -> embed locally (HuggingFace) -> persist to Chroma.
+Flow: read .md files -> chunk -> embed locally (HuggingFace) -> persist to Chroma.
+
+Each (embedding model, chunking) combination gets its own Chroma collection, so
+experiments with different settings never overwrite each other. The collection
+records a fingerprint of the source files; `get_or_build_index` reuses it only
+while that fingerprint still matches.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
 import chromadb
-from llama_index.core import (
-    Settings,
-    SimpleDirectoryReader,
-    StorageContext,
-    VectorStoreIndex,
-)
+from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
-from .config import Config, load_config
+from .config import Config
+
+log = logging.getLogger(__name__)
+
+SOURCE_EXTS = (".md",)
 
 
-def configure_embeddings(config: Config) -> None:
-    """Point LlamaIndex at the local HuggingFace embedding model + splitter.
+@dataclass(frozen=True)
+class IndexSpec:
+    """Everything that determines the contents of an index, apart from the source data."""
 
-    Shared by indexing and querying so both use identical chunking/embeddings.
-    """
-    Settings.embed_model = HuggingFaceEmbedding(model_name=config.embedding_model)
-    Settings.node_parser = SentenceSplitter(
-        chunk_size=config.chunk_size,
-        chunk_overlap=config.chunk_overlap,
+    embedding_model: str
+    chunk_size: int
+    chunk_overlap: int
+
+    @classmethod
+    def from_config(cls, config: Config) -> IndexSpec:
+        return cls(config.embedding_model, config.chunk_size, config.chunk_overlap)
+
+    def key(self) -> str:
+        payload = json.dumps(asdict(self), sort_keys=True).encode()
+        return hashlib.sha256(payload).hexdigest()[:12]
+
+
+def _source_files(source_dir: Path) -> list[Path]:
+    return sorted(
+        p
+        for p in source_dir.rglob("*")
+        if p.is_file()
+        and p.suffix in SOURCE_EXTS
+        and not any(part.startswith(".") for part in p.relative_to(source_dir).parts)
     )
 
 
-def _chroma_collection(config: Config, *, reset: bool):
-    client = chromadb.PersistentClient(path=str(config.chroma_path))
-    if reset:
-        try:
-            client.delete_collection(config.collection_name)
-        except Exception:
-            pass  # Collection didn't exist yet -- fine.
-    return client.get_or_create_collection(config.collection_name)
+def source_fingerprint(source_dir: Path) -> str:
+    """Hash of every source file's relative path and content."""
+    digest = hashlib.sha256()
+    for path in _source_files(source_dir):
+        digest.update(path.relative_to(source_dir).as_posix().encode())
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()[:16]
 
 
-def build_index(config: Config | None = None) -> VectorStoreIndex:
-    """Read the vault and (re)build the persisted Chroma index. Full rebuild."""
-    config = config or load_config(require_token=False)
-    configure_embeddings(config)
+def load_documents(source_dir: Path) -> list[Document]:
+    """One Document per file, identified by its path relative to `source_dir`.
 
-    print(f"Reading notes from: {config.vault_path}")
-    documents = SimpleDirectoryReader(
-        input_dir=str(config.vault_path),
-        recursive=True,
-        required_exts=[".md"],
-        filename_as_id=True,
-    ).load_data()
-    print(f"  loaded {len(documents)} note(s)")
+    `doc_id` is the stable identifier used for citations and eval relevance labels.
+    It is the only metadata, so chunk embeddings don't depend on machine-specific
+    absolute paths or timestamps.
+    """
+    documents = []
+    for path in _source_files(source_dir):
+        doc_id = path.relative_to(source_dir).as_posix()
+        documents.append(
+            Document(
+                text=path.read_text(encoding="utf-8"),
+                id_=doc_id,
+                metadata={"doc_id": doc_id},
+            )
+        )
+    return documents
 
-    config.storage_dir.mkdir(parents=True, exist_ok=True)
-    collection = _chroma_collection(config, reset=True)
-    vector_store = ChromaVectorStore(chroma_collection=collection)
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
-    print(f"Embedding with: {config.embedding_model} (first run downloads the model)")
+def make_embed_model(name: str) -> HuggingFaceEmbedding:
+    return HuggingFaceEmbedding(model_name=name)
+
+
+def collection_name(prefix: str, spec: IndexSpec) -> str:
+    return f"{prefix}-{spec.key()}"
+
+
+def _client(chroma_path: Path) -> chromadb.ClientAPI:
+    chroma_path.mkdir(parents=True, exist_ok=True)
+    return chromadb.PersistentClient(path=str(chroma_path))
+
+
+def build_index(
+    source_dir: Path,
+    spec: IndexSpec,
+    chroma_path: Path,
+    prefix: str,
+    embed_model: HuggingFaceEmbedding | None = None,
+) -> VectorStoreIndex:
+    """Read `source_dir` and (re)build its collection from scratch."""
+    embed_model = embed_model or make_embed_model(spec.embedding_model)
+    client = _client(chroma_path)
+    name = collection_name(prefix, spec)
+    if name in {c.name for c in client.list_collections()}:
+        client.delete_collection(name)
+
+    documents = load_documents(source_dir)
+    log.info("loaded %d document(s) from %s", len(documents), source_dir)
+
+    fingerprint = source_fingerprint(source_dir)
+    collection = client.create_collection(
+        name, metadata={"source_fingerprint": fingerprint, **asdict(spec)}
+    )
     index = VectorStoreIndex.from_documents(
         documents,
-        storage_context=storage_context,
+        storage_context=StorageContext.from_defaults(
+            vector_store=ChromaVectorStore(chroma_collection=collection)
+        ),
+        embed_model=embed_model,
+        transformations=[
+            SentenceSplitter(chunk_size=spec.chunk_size, chunk_overlap=spec.chunk_overlap)
+        ],
         show_progress=True,
     )
-
-    print(f"  {collection.count()} chunk(s) embedded")
-    print(f"Index persisted to: {config.chroma_path}")
+    log.info("embedded %d chunk(s) into collection %s", collection.count(), name)
     return index
 
 
-def load_index(config: Config) -> VectorStoreIndex:
-    """Load an existing persisted index (used by the query engine)."""
-    configure_embeddings(config)
-    collection = _chroma_collection(config, reset=False)
-    if collection.count() == 0:
+def load_index(
+    spec: IndexSpec,
+    chroma_path: Path,
+    prefix: str,
+    embed_model: HuggingFaceEmbedding | None = None,
+) -> VectorStoreIndex:
+    """Load an existing collection for `spec`. Raises if it was never built."""
+    client = _client(chroma_path)
+    name = collection_name(prefix, spec)
+    if name not in {c.name for c in client.list_collections()}:
         raise RuntimeError(
-            "The index is empty. Run `python scripts/index.py` first to build it."
+            f"No index for these settings ({name}). Run `python scripts/index.py` first."
         )
-    vector_store = ChromaVectorStore(chroma_collection=collection)
-    return VectorStoreIndex.from_vector_store(vector_store)
+    return VectorStoreIndex.from_vector_store(
+        ChromaVectorStore(chroma_collection=client.get_collection(name)),
+        embed_model=embed_model or make_embed_model(spec.embedding_model),
+    )
+
+
+def get_or_build_index(
+    source_dir: Path,
+    spec: IndexSpec,
+    chroma_path: Path,
+    prefix: str,
+    *,
+    rebuild: bool = False,
+) -> tuple[VectorStoreIndex, bool]:
+    """Reuse the collection if its source fingerprint matches, else rebuild.
+
+    Returns (index, built) where `built` says whether a rebuild happened.
+    """
+    embed_model = make_embed_model(spec.embedding_model)
+    if not rebuild:
+        client = _client(chroma_path)
+        name = collection_name(prefix, spec)
+        if name in {c.name for c in client.list_collections()}:
+            stored = client.get_collection(name).metadata or {}
+            if stored.get("source_fingerprint") == source_fingerprint(source_dir):
+                return load_index(spec, chroma_path, prefix, embed_model), False
+    return build_index(source_dir, spec, chroma_path, prefix, embed_model), True
