@@ -1,9 +1,9 @@
 # Core RAG framework
 llama-index-core>=0.11,<0.13
 
-# HuggingFace integrations
+# Embeddings (local HuggingFace) + answer LLM (local Ollama)
 llama-index-embeddings-huggingface>=0.3
-llama-index-llms-huggingface-api>=0.3
+llama-index-llms-ollama>=0.5
 sentence-transformers>=3.0
 
 # Vector store
@@ -15,4 +15,3 @@ gradio>=4.44
 
 # Config / env
 pyyaml>=6.0
-python-dotenv>=1.0

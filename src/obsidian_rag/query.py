@@ -1,4 +1,4 @@
-"""Query engine: retrieve relevant notes and generate an answer with an HF LLM."""
+"""Query engine: retrieve relevant notes and generate an answer with a local Ollama LLM."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from llama_index.core.prompts import PromptTemplate
-from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
+from llama_index.llms.ollama import Ollama
 
 from .config import Config, load_config
 from .indexer import IndexSpec, load_index
@@ -43,10 +43,10 @@ class RagEngine:
 
     def __init__(self, config: Config | None = None):
         self.config = config or load_config()
-        llm = HuggingFaceInferenceAPI(
-            model_name=self.config.llm_model,
-            provider=self.config.llm_provider,
-            token=self.config.hf_token,
+        llm = Ollama(
+            model=self.config.llm_model,
+            base_url=self.config.ollama_base_url,
+            request_timeout=300.0,  # CPU inference can be slow
         )
         index = load_index(
             IndexSpec.from_config(self.config),
