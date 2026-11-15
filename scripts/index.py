@@ -17,7 +17,7 @@ from obsidian_rag.indexer import IndexSpec, build_index  # noqa: E402
 def main() -> None:
     # Token not needed for indexing (embeddings run locally).
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    config = load_config(require_token=False)
+    config = load_config()
     build_index(
         config.vault_path,
         IndexSpec.from_config(config),

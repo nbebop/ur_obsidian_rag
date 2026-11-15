@@ -12,19 +12,14 @@ vault_path: "D:/kame-house"
 # then re-run `python scripts/index.py`.
 embedding_model: "BAAI/bge-small-en-v1.5"
 
-# HuggingFace Inference API model (used to generate answers).
-# Any text-generation model served by the HF Inference API works.
+# Local Ollama model used to generate answers (run `ollama pull <name>` first).
 # Change this to swap the LLM -- no re-indexing needed.
-# This default is ungated (no terms to accept) and served as a chat model by
-# the HF Inference Providers. Gated alternatives like
-# meta-llama/Llama-3.2-3B-Instruct also work once you accept their terms on HF.
-llm_model: "Qwen/Qwen2.5-7B-Instruct"
+# Small default for CPU-only machines; if you have the RAM/GPU, try
+# "qwen2.5:7b-instruct" or "llama3.1:8b".
+llm_model: "qwen2.5:3b-instruct"
 
-# Which HuggingFace inference provider serves the LLM.
-# "auto" lets HF route to whichever provider hosts the model (recommended).
-# Requires a token with the "Inference Providers" permission enabled.
-# Other values: hf-inference, together, novita, fireworks-ai, nebius, ...
-llm_provider: "auto"
+# Where the Ollama server listens (its default).
+ollama_base_url: "http://localhost:11434"
 
 # Chunking: how notes are split before embedding.
 chunk_size: 512
