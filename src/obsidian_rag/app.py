@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 import gradio as gr
 
@@ -25,7 +26,8 @@ def _format_sources(sources) -> str:
         return ""
     lines = ["\n\n---", "**Sources:**"]
     for s in sources:
-        lines.append(f"- `{s.note}` (score {s.score}) — {s.snippet}")
+        uri = "obsidian://open?path=" + quote(str(s.path), safe="")
+        lines.append(f"- [{s.path}]({uri}) (score {s.score}) — {s.snippet}")
     return "\n".join(lines)
 
 
