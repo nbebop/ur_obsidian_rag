@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from llama_index.core.prompts import PromptTemplate
 from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
@@ -26,6 +27,7 @@ QA_PROMPT = PromptTemplate(
 @dataclass
 class Source:
     note: str
+    path: Path  # absolute path in the vault (derived at query time, not indexed)
     score: float
     snippet: str
 
@@ -66,6 +68,7 @@ class RagEngine:
             sources.append(
                 Source(
                     note=name,
+                    path=self.config.vault_path / name,
                     score=round(node.score or 0.0, 3),
                     snippet=text[:200] + ("..." if len(text) > 200 else ""),
                 )
