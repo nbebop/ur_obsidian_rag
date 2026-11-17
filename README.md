@@ -78,21 +78,6 @@ python src/obsidian_rag/app.py
 
 > Run commands from the project root with the venv activated.
 
-## Evaluation (in progress)
-
-Retrieval is scored against a versioned golden set (`evaluation/golden/*.jsonl`, schema in
-`evaluation/golden.py`) with recall@k, MRR and nDCG@k at document level, and every run is
-logged to MLflow (params, metrics, git SHA, corpus fingerprint, per-question results):
-
-```powershell
-pip install -e ".[eval,dev]"
-python -m evaluation.run --config evaluation/experiments/baseline.yaml
-mlflow ui                             # browse runs
-pytest                                # unit + fixture-corpus integration tests
-```
-
-The public eval corpus and golden set are not committed yet, so there are no results to
-report.
 
 ## Changing the model
 
